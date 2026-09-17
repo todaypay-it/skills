@@ -1,0 +1,4 @@
+interface:
+  display_name: "TDayPay Integration"
+  short_description: "Plan and code TDayPay integrations with rule comments"
+  default_prompt: "Use $tdaypay-integration to inspect this project, propose an integration approach for confirmation, then implement TDayPay with country-rule validation comments."

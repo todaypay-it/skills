@@ -1,0 +1,240 @@
+{
+  "schemaVersion": 3,
+  "verifiedAt": "2026-09-10",
+  "defaultSourceId": "tdaypay-public",
+  "gateways": {
+    "latin": "https://apis.tdaypay.com/gateway/base/biz",
+    "asia": "https://api.tdaypay.com/gateway/base/biz",
+    "africa": "https://afapi.tdaypay.com/gateway/base/biz"
+  },
+  "callbackRules": {
+    "sourceIds": ["tdaypay-webhook"],
+    "transport": {"method": "POST", "bodyFormat": "JSON", "urlScheme": "https", "contentTypeHeaderDocumented": false},
+    "signature": {
+      "header": "sign",
+      "algorithm": "SHA512",
+      "input": "rawBody + merchantKey",
+      "encoding": "UTF-8",
+      "output": "SHA512 hexadecimal; examples are lowercase but letter case is not explicitly specified"
+    },
+    "requiredFields": ["mchOrderId", "orderId", "orderStatus", "amount", "orderType", "createTime"],
+    "optionalFields": ["bankId", "failMessage", "transIds", "payMethod"],
+    "unclassifiedFields": ["realAmount"],
+    "orderStatuses": ["SUCCESS", "FAILED", "REVERSED", "PAYING", "REFUND"],
+    "orderTypes": ["PAYMENT", "PAYOUT"],
+    "unresolvedOrderStatuses": ["REFUND"],
+    "amountPattern": "^\\d+\\.\\d{2}$",
+    "createTimeFormat": "%Y%m%d%H%M%S",
+    "createTimeTimezone": "UTC",
+    "acknowledgement": {
+      "httpStatus": 200,
+      "body": "success",
+      "after": "authenticated event and processing outcome are durably recorded",
+      "documentedAttempts": 7,
+      "attemptCountIncludesInitial": "unspecified",
+      "retryDelay": "5 minutes multiplied by callback attempt number; starting index is unspecified"
+    },
+    "callbackIps": {
+      "latin": ["18.228.164.232", "18.228.73.43", "54.233.252.236", "54.94.8.45"],
+      "asia": ["13.200.70.4", "15.207.47.92", "3.108.48.106", "43.205.72.188"]
+    },
+    "stateRules": [
+      "Callbacks may be repeated; process side effects idempotently.",
+      "SUCCESS can later become REVERSED.",
+      "FAILED can later become SUCCESS, including payout.",
+      "Preserve distinct transitions for an order instead of deduplicating by orderId alone."
+    ]
+  },
+  "commonRules": {
+    "payment": {
+      "method": "pay",
+      "sourceIds": ["tdaypay-public"],
+      "requiredBodyFields": ["mchOrderId", "amount", "currency", "productinfo", "firstname", "lastname", "email", "phone"],
+      "optionalBodyFields": ["callbackUrl", "redirectUrl", "noPayPage", "paymentType"],
+      "headers": {
+        "serviceName": "api.pay",
+        "method": "pay",
+        "mchId": "required",
+        "signType": "SHA512",
+        "timestamp": "Unix timestamp in seconds",
+        "sign": "lowercase SHA512 signature over the exact JSON body",
+        "Content-Type": "application/json"
+      },
+      "fieldConstraints": {
+        "mchOrderId": {"minLength": 5, "maxLength": 32},
+        "productinfo": {"minLength": 1, "maxLength": 100},
+        "phone": {"minLength": 6, "maxLength": 20}
+      },
+      "fieldRules": {
+        "mchOrderId": "Required, unique in the merchant system, and 5-32 characters.",
+        "amount": "Required, finite, and greater than zero; country and channel rules may be stricter.",
+        "currency": "Required three-letter currency code.",
+        "productinfo": "Required product description with 1-100 characters.",
+        "firstname": "Required payer first name.",
+        "lastname": "Required payer last name.",
+        "email": "Required syntactically valid payer email.",
+        "phone": "Required payer phone with 6-20 characters; country and channel rules may be stricter."
+      },
+      "manualConfirmations": [
+        "Confirm mchOrderId is unique in the merchant system.",
+        "Confirm payer identity and contact fields belong to the actual payer when the country rule requires real identity.",
+        "A synchronous orderId or resultCode=000000 proves API acceptance, not final payment completion."
+      ]
+    },
+    "payout": {
+      "method": "payOut",
+      "sourceIds": ["tdaypay-public"],
+      "requiredBodyFields": ["mchOrderId", "amount", "currency", "purpose", "beneficiaryName", "beneficiaryEmail", "beneficiaryMobile", "beneficiaryAccountNumber"],
+      "optionalBodyFields": ["paymentType", "beneficiaryBankCode", "beneficiaryBankName", "beneficiaryAccountType", "docType", "docNumber", "callbackUrl"],
+      "fieldConstraints": {
+        "mchOrderId": {"minLength": 5, "maxLength": 32},
+        "beneficiaryMobile": {"minLength": 6, "maxLength": 20}
+      },
+      "headers": {
+        "serviceName": "api.pay",
+        "method": "payOut",
+        "mchId": "required",
+        "signType": "SHA512",
+        "timestamp": "Unix timestamp in seconds",
+        "sign": "lowercase SHA512 signature over the exact JSON body",
+        "Content-Type": "application/json"
+      },
+      "fieldRules": {
+        "mchOrderId": "Required and unique in the merchant system.",
+        "amount": "Required, finite, and greater than zero; country and channel rules may be stricter.",
+        "currency": "Required three-letter currency code.",
+        "purpose": "Required payout purpose or description.",
+        "beneficiaryName": "Required beneficiary name; use the legal account-holder name when the receiving bank checks ownership.",
+        "beneficiaryEmail": "Required syntactically valid email.",
+        "beneficiaryMobile": "Required valid phone; country and channel rules may be stricter.",
+        "beneficiaryAccountNumber": "Required bank, wallet, phone, key, or channel-specific identifier."
+      },
+      "manualConfirmations": [
+        "Confirm mchOrderId is unique in the merchant system.",
+        "Confirm the account or channel identifier exists and belongs to the intended beneficiary.",
+        "A synchronous orderId or resultCode=000000 does not prove that funds reached the beneficiary."
+      ]
+    }
+  },
+  "sources": {
+    "tdaypay-public": {"owner": "TDayPay", "sourceType": "tdaypay-api", "url": "https://documenter.getpostman.com/view/10814992/2s93XyTNoA", "checkedAt": "2026-09-10", "note": "Public API document; merchant enablement and live limits still require the current merchant contract."},
+    "tdaypay-webhook": {"owner": "TDayPay", "sourceType": "tdaypay-api", "url": "https://documenter.getpostman.com/view/10814992/2s93XyTNoA#api-webhook-callback", "checkedAt": "2026-09-10", "note": "Common payment and payout callback contract; the TRANSFIYA request uses callbackUrl but does not define a channel-specific callback signature."},
+    "tdaypay-mxn-payment": {"owner": "TDayPay", "sourceType": "tdaypay-api", "url": "https://documenter.getpostman.com/view/10814992/2s93XyTNoA#5c2f17f7-b93a-41dd-9eee-fbb8a4bbaf87", "checkedAt": "2026-09-10"},
+    "tdaypay-mxn-payout": {"owner": "TDayPay", "sourceType": "tdaypay-api", "url": "https://documenter.getpostman.com/view/10814992/2s93XyTNoA#860370fd-2f05-401e-ba2e-e27ffc840eec", "checkedAt": "2026-09-10"},
+    "banxico-spei": {"owner": "Banco de México", "sourceType": "network", "url": "https://www.banxico.org.mx/servicios/mi-spei_-transferencias-ban.html", "checkedAt": "2026-09-10"},
+    "banxico-spei-circular": {"owner": "Banco de México", "sourceType": "network-regulation", "url": "https://www.banxico.org.mx/marco-normativo/normativa-emitida-por-el-banco-de-mexico/circular-14-2017/%7BA06FBFEE-06BB-F249-32FC-25B334B2A744%7D.pdf", "checkedAt": "2026-09-10"},
+    "banxico-clabe": {"owner": "Banco de México", "sourceType": "network-regulation", "url": "https://www.banxico.org.mx/marco-normativo/normativa-emitida-por-el-banco-de-mexico/circular-12-2018/%7BA6023AE0-8135-44ED-04DA-2068117ED5FD%7D.pdf", "checkedAt": "2026-09-10"},
+    "tdaypay-cop-payment": {"owner": "TDayPay", "sourceType": "tdaypay-api", "url": "https://documenter.getpostman.com/view/10814992/2s93XyTNoA#eb4d5cd1-e31a-401e-9941-cd2f1b6dbef0", "checkedAt": "2026-09-10"},
+    "tdaypay-cop-net-banking": {"owner": "TDayPay", "sourceType": "tdaypay-api", "url": "https://documenter.getpostman.com/view/10814992/2s93XyTNoA#b316c8ea-4e43-44ee-9a80-3254dbed98b8", "checkedAt": "2026-09-10"},
+    "tdaypay-cop-transfiya": {"owner": "TDayPay", "sourceType": "tdaypay-api", "url": "https://documenter.getpostman.com/view/10814992/2s93XyTNoA#fb2ecd91-ea25-489b-a8fb-3c95a35ab230", "checkedAt": "2026-09-10"},
+    "tdaypay-cop-bre-b": {"owner": "TDayPay", "sourceType": "tdaypay-api", "url": "https://documenter.getpostman.com/view/10814992/2s93XyTNoA#171f372c-0752-45e5-8a3f-85897b9f006f", "checkedAt": "2026-09-10"},
+    "pse-help": {"owner": "ACH Colombia / PSE", "sourceType": "network", "url": "https://www.pse.com.co/es/persona-centro-de-ayuda", "checkedAt": "2026-09-10"},
+    "ach-transfiya-rules": {"owner": "ACH Colombia", "sourceType": "network-regulation", "url": "https://www.achcolombia.com.co/documents/1176249/0/Reglamento_del_Sistema_de_Pago_de_Bajo_Valor_ACH_Transfiya.pdf/8b99ec26-7784-5e59-0457-fe053100c057?t=1755791532417", "checkedAt": "2026-09-10"},
+    "banrep-bre-b": {"owner": "Banco de la República", "sourceType": "network", "url": "https://www.banrep.gov.co/es/bre-b/preguntas-frecuentes", "checkedAt": "2026-09-10"},
+    "nequi-button": {"owner": "Nequi", "sourceType": "institution", "url": "https://ayuda.nequi.com.co/hc/es/articles/35336140345101--C%C3%B3mo-pagar-con-el-Bot%C3%B3n-Nequi", "checkedAt": "2026-09-10"},
+    "nequi-transfiya-retirement": {"owner": "Nequi", "sourceType": "institution", "url": "https://ayuda.nequi.com.co/hc/es/articles/34016029816717--Hasta-cu%C3%A1ndo-puedo-enviar-y-recibir-por-Transfiya", "checkedAt": "2026-09-10"}
+  },
+  "countries": {
+    "BRL": {"country": "Brazil", "gateway": "latin", "coverage": "routing-only", "sourceIds": ["tdaypay-public"]},
+    "MXN": {
+      "country": "Mexico", "gateway": "latin", "coverage": "detailed",
+      "sourceIds": ["tdaypay-public", "tdaypay-mxn-payment", "tdaypay-mxn-payout"],
+      "payment": {
+        "channels": ["SPEI", "OXXO_PAY", "CASH"], "channelsExhaustive": false,
+        "notes": ["The public collection has no authoritative MXN payment amount bounds."],
+        "channelRules": {
+          "SPEI": {"requiredValues": {"dynamic": "4"}, "mchOrderIdForbids": "_", "sourceIds": ["tdaypay-mxn-payment", "banxico-spei"], "manualConfirmations": ["Confirm this merchant is enabled for SPEI.", "Deduplicate repeated-payment callbacks by bankId and book realAmount, not the requested amount."]},
+          "OXXO_PAY": {"sourceIds": ["tdaypay-mxn-payment"]},
+          "CASH": {"sourceIds": ["tdaypay-mxn-payment"]}
+        }
+      },
+      "payout": {
+        "channels": ["SPEI", "NET_BANKING", "DIMO"], "channelsExhaustive": false,
+        "amount": {"min": "40", "max": "15000", "limitsConflictWithExamples": true},
+        "requiredFields": ["paymentType", "beneficiaryBankCode", "beneficiaryAccountNumber"],
+        "channelRules": {
+          "SPEI": {"beneficiaryAccountNumberKind": "clabe", "sourceIds": ["tdaypay-mxn-payout", "banxico-clabe"], "manualConfirmations": ["A valid CLABE checksum does not prove that the account exists or belongs to the named beneficiary."]},
+          "NET_BANKING": {"beneficiaryAccountNumberKind": "bank-card", "sourceIds": ["tdaypay-mxn-payout", "banxico-spei"]},
+          "DIMO": {"beneficiaryAccountNumberKind": "mx-mobile-10", "sourceIds": ["tdaypay-mxn-payout"]}
+        },
+        "manualConfirmations": ["Confirm this merchant is enabled for the selected payout channel.", "Treat payout SUCCESS as reversible because TDayPay documents a possible later REVERSED state."],
+        "notes": ["The payout narrative states 40-15,000 MXN but its saved example uses 1.00; require contract confirmation at conflicting boundaries.", "Do not derive beneficiaryBankCode from CLABE; the public provider mapping is internally inconsistent."]
+      },
+      "networkFacts": {
+        "SPEI": {
+          "providerCapabilityInferred": false,
+          "sourceIds": ["banxico-spei", "banxico-spei-circular", "banxico-clabe"],
+          "facts": [
+            "SPEI transfers are domestic MXN inter-institution transfers; network support does not prove TDayPay merchant enablement.",
+            "The network may identify a beneficiary by an 18-digit CLABE, a 16-digit eligible card, or a linked 10-digit mobile number, but TDayPay payout SPEI specifically requires CLABE.",
+            "CLABE has 18 digits and a deterministic 3/7/1 checksum; a valid checksum does not prove account ownership or reachability.",
+            "1,500 UDIS is a low-value classification threshold, not a universal SPEI maximum.",
+            "Liquidado is not final evidence of beneficiary credit; CEP or Confirmación de Abono is the stronger credit evidence.",
+            "Do not promise that every SPEI operation is instant and 24/7; detailed timing varies by amount, participant and request type."
+          ]
+        }
+      },
+      "notes": []
+    },
+    "PEN": {"country": "Peru", "gateway": "latin", "coverage": "routing-only", "sourceIds": ["tdaypay-public"]},
+    "CLP": {"country": "Chile", "gateway": "latin", "coverage": "routing-only", "sourceIds": ["tdaypay-public"]},
+    "COP": {
+      "country": "Colombia", "gateway": "latin", "coverage": "detailed",
+      "sourceIds": ["tdaypay-public", "tdaypay-cop-payment", "tdaypay-cop-net-banking", "tdaypay-cop-transfiya", "tdaypay-cop-bre-b"],
+      "amount": {"decimalsAllowed": false, "min": "5000", "max": "3000000", "limitsConflictWithExamples": true},
+      "phone": {"localDigitsWithoutCountryCode": 10, "countryCode": "+57"},
+      "payment": {
+        "channels": ["NET_BANKING", "BRE_B", "NEQUI"], "channelsExhaustive": false,
+        "notes": ["CASH is listed as temporarily unsupported and is not a validated collection channel.", "BRE_KEY appears in the payment enumeration without enough public request rules and remains unresolved.", "The provider's anti-automation suggestions are checkout-security guidance, not request fields; integrate them only through a separately reviewed browser/WAF design."],
+        "channelAliases": {"PSE": "NET_BANKING"},
+        "requiredFields": ["paymentType", "beneficiaryType", "beneficiaryId", "ipAddress", "productUrl"],
+        "optionalFixedValues": {"paymentMethod": "API"},
+        "allowedValues": {"beneficiaryType": ["CC", "NIT"]},
+        "conditionalPatterns": {"beneficiaryId": {"selector": "beneficiaryType", "patterns": {"CC": "^\\d{6,10}$", "NIT": "^\\d{9}$"}, "descriptions": {"CC": "6-10 digits", "NIT": "exactly 9 digits"}}},
+        "formatRules": {"ipAddress": {"kind": "ip", "runtimeValueRequired": true}, "productUrl": {"kind": "httpUrl"}},
+        "realIdentityRequired": true,
+        "channelRules": {
+          "NET_BANKING": {"requiredFields": ["bankCode"], "allowedValues": {"bankCode": ["001", "002", "006", "007", "009", "012", "013", "019", "023", "031", "032", "040", "047", "051", "052", "053", "059", "060", "061", "062", "063", "064", "065", "066", "069", "121", "289", "298", "370", "507", "551"]}, "valueLabels": {"bankCode": {"001": "BANCO DE BOGOTA", "002": "BANCO POPULAR", "006": "ITAU", "007": "BANCOLOMBIA", "009": "CITIBANK", "012": "BANCO GNB SUDAMERIS", "013": "BBVA", "019": "SCOTIABANK COLPATRIA", "023": "BANCO DE OCCIDENTE", "031": "BANCOLDEX", "032": "BANCO CAJA SOCIAL", "040": "BANCO AGRARIO", "047": "BANCO MUNDO MUJER", "051": "DAVIVIENDA", "052": "AV VILLAS", "053": "BANCO W", "059": "BANCAMIA", "060": "PICHINCHA", "061": "BANCOOMEVA", "062": "BANCO FALABELLA", "063": "BANCO FINANDINA", "064": "BANCO MULTIBANK", "065": "BANCO SANTANDER DE NEGOCIOS", "066": "BANCO COOPERATIVO COOPCENTRAL", "069": "BANCO SERFINANZA", "121": "JURISCOOP", "289": "COOTRAFA", "298": "CONFIAR", "370": "COLTEFINANCIERA", "507": "NEQUI", "551": "DAVIPLATA"}}, "sourceIds": ["tdaypay-cop-payment", "pse-help"], "notes": ["Saved examples omit bankCode or use bank name ITAU, conflicting with the required numeric table; validation follows the table value 006."], "manualConfirmations": ["Confirm PSE registration, payer-owned contact details, the bank-side limit and merchant route enablement."]},
+          "NEQUI": {"sourceIds": ["tdaypay-cop-payment", "nequi-button"], "manualConfirmations": ["The payer needs an eligible Nequi account, sufficient balance and approval in the Nequi app."], "prohibitedAutofill": ["bankCode=507"]},
+          "BRE_B": {"sourceIds": ["tdaypay-cop-payment", "banrep-bre-b"], "flow": "qr", "manualConfirmations": ["TDayPay documents this collection as a QR flow; do not require a recipient key or bankCode solely from Bre-B network rules."]}
+        }
+      },
+      "payout": {
+        "channels": ["NET_BANKING", "TRANSFIYA", "BRE_B"], "channelsExhaustive": false,
+        "fieldConstraints": {"docNumber": {"maxLength": 13}},
+        "channelRules": {
+          "NET_BANKING": {"requiredFields": ["beneficiaryBankName", "beneficiaryAccountNumber", "beneficiaryAccountType", "docType", "docNumber", "firstName", "lastName"], "allowedValues": {"beneficiaryAccountType": ["CHECKING", "SAVINGS"], "docType": ["CC", "CE", "TI", "COLOMBIA_PASSPORT_ID", "NIT"]}, "sourceIds": ["tdaypay-cop-net-banking"], "manualConfirmations": ["Confirm account existence, ownership and bank processing availability; the public description is not an SLA."]},
+          "TRANSFIYA": {"requiredFields": ["beneficiaryBankName", "beneficiaryAccountNumber", "beneficiaryAccountType", "docType", "docNumber"], "allowedValues": {"beneficiaryAccountType": ["CHECKING", "SAVINGS"], "docType": ["CC", "CE", "TI", "COLOMBIA_PASSPORT_ID", "NIT"]}, "beneficiaryAccountNumberKind": "co-mobile-10", "beneficiaryActivationRequired": true, "allowedBankCodes": ["001", "006", "007", "013", "019", "023", "032", "040", "051", "052", "062", "063", "066", "069", "289", "298", "507", "552", "553"], "sourceIds": ["tdaypay-cop-transfiya", "ach-transfiya-rules", "nequi-transfiya-retirement"], "manualConfirmations": ["Confirm the TDayPay route and recipient institution still support this Transfiya payout."]},
+          "BRE_B": {"requiredFields": ["beneficiaryAccountNumber", "docType", "docNumber"], "allowedValues": {"docType": ["CC", "CE", "TI", "COLOMBIA_PASSPORT_ID", "NIT"]}, "beneficiaryAccountNumberKind": "bre-b-key", "beneficiaryActivationRequired": true, "validatorKeyTypes": ["PHONE", "EMAIL", "DOCUMENT", "ALPHANUMERIC", "MERCHANT_CODE"], "sourceIds": ["tdaypay-cop-bre-b", "banrep-bre-b"], "manualConfirmations": ["The recipient key must be registered. Merchant-code key support requires a current TDayPay contract."]}
+        }
+      },
+      "networkFacts": {
+        "PSE": {"providerCapabilityInferred": false, "sourceIds": ["pse-help"], "facts": ["PSE is an online debit flow from savings, checking or electronic-deposit products; it is not a payout rail.", "A payer registers identity and contact data with PSE; the payer's institution determines the usable payment amount.", "These facts do not prove that a TDayPay merchant is enabled for NET_BANKING/PSE."]},
+        "NEQUI": {"providerCapabilityInferred": false, "sourceIds": ["nequi-button"], "facts": ["Botón Nequi requires an eligible Nequi account, sufficient balance and user approval in the app.", "Nequi availability for a merchant does not prove TDayPay route enablement."]},
+        "TRANSFIYA": {"providerCapabilityInferred": false, "sourceIds": ["ach-transfiya-rules", "nequi-transfiya-retirement"], "facts": ["ACH Colombia's 2025 rules describe a 24/7/365 low-value immediate system and a 1,000 UVB network ceiling; institutions may set lower limits.", "Nequi states that Transfiya in its app ended on 2025-10-05 and moved to Bre-B, so TDayPay TRANSFIYA with Nequi/507 is a stale-channel conflict requiring current written confirmation.", "Do not automatically rewrite TRANSFIYA to BRE_B."]},
+        "BRE_B": {"providerCapabilityInferred": false, "sourceIds": ["banrep-bre-b"], "facts": ["Bre-B supports domestic immediate transfers 24/7/365 through participating institutions.", "A receiver registers a key; a sender only needs the receiver key or QR.", "Key types include national mobile number, identity number, email, an @-prefixed alphanumeric identifier and a merchant code.", "The 2026 network ceiling is 1,000 UVB (12,110,000 COP on the official page), but TDayPay's documented 3,000,000 COP ceiling is lower and remains the conservative provider rule.", "Network participation does not prove TDayPay merchant enablement."]}
+      },
+      "notes": ["The documented 5,000-3,000,000 range conflicts with public examples below 5,000; boundary exceptions require current contract confirmation.", "PSE is a payment-only alias; never normalize PSE to NET_BANKING for payout."]
+    },
+    "ARS": {"country": "Argentina", "gateway": "latin", "coverage": "routing-only", "sourceIds": ["tdaypay-public"]},
+    "ECS": {"country": "Ecuador", "gateway": "latin", "coverage": "routing-only", "sourceIds": ["tdaypay-public"]},
+    "VES": {"country": "Venezuela", "gateway": "latin", "coverage": "routing-only", "sourceIds": ["tdaypay-public"]},
+    "INR": {"country": "India", "gateway": "asia", "coverage": "routing-only", "sourceIds": ["tdaypay-public"]},
+    "IDR": {"country": "Indonesia", "gateway": "asia", "coverage": "routing-only", "sourceIds": ["tdaypay-public"]},
+    "RUB": {"country": "Russia", "gateway": "asia", "coverage": "routing-only", "sourceIds": ["tdaypay-public"]},
+    "PHP": {"country": "Philippines", "gateway": "asia", "coverage": "routing-only", "sourceIds": ["tdaypay-public"]},
+    "MYR": {"country": "Malaysia", "gateway": "asia", "coverage": "routing-only", "sourceIds": ["tdaypay-public"]},
+    "BDT": {"country": "Bangladesh", "gateway": "asia", "coverage": "routing-only", "sourceIds": ["tdaypay-public"]},
+    "PKR": {"country": "Pakistan", "gateway": "asia", "coverage": "routing-only", "sourceIds": ["tdaypay-public"]},
+    "THB": {"country": "Thailand", "gateway": "asia", "coverage": "routing-only", "sourceIds": ["tdaypay-public"]},
+    "AED": {"country": "United Arab Emirates", "gateway": "asia", "coverage": "routing-only", "sourceIds": ["tdaypay-public"]},
+    "KES": {"country": "Kenya", "gateway": "africa", "coverage": "routing-only", "sourceIds": ["tdaypay-public"]},
+    "NGN": {"country": "Nigeria", "gateway": "africa", "coverage": "routing-only", "sourceIds": ["tdaypay-public"]},
+    "TZS": {"country": "Tanzania", "gateway": "africa", "coverage": "routing-only", "sourceIds": ["tdaypay-public"]},
+    "ZAR": {"country": "South Africa", "gateway": null, "coverage": "unmapped", "sourceIds": ["tdaypay-public"]},
+    "USD": {"country": "United States / cross-border", "gateway": null, "coverage": "unmapped", "sourceIds": ["tdaypay-public"]},
+    "EUR": {"country": "Euro area / cross-border", "gateway": null, "coverage": "unmapped", "sourceIds": ["tdaypay-public"]},
+    "TRY": {"country": "Turkey", "gateway": null, "coverage": "unmapped", "sourceIds": ["tdaypay-public"]},
+    "VND": {"country": "Vietnam", "gateway": null, "coverage": "unmapped", "sourceIds": ["tdaypay-public"]}
+  }
+}

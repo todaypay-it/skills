@@ -1,0 +1,222 @@
+[
+  {
+    "name": "COP payment accepts PSE only as a payment alias",
+    "action": "payment",
+    "body": {"currency": "COP", "paymentType": "PSE", "amount": "5000", "bankCode": "001"},
+    "expect": {"valid": true, "paymentType": "NET_BANKING", "normalization": "PSE -> NET_BANKING", "networkContext": true, "sourceId": "pse-help"}
+  },
+  {
+    "name": "COP payout rejects the PSE alias",
+    "action": "payout",
+    "body": {"currency": "COP", "paymentType": "PSE", "amount": "5000"},
+    "expect": {"valid": false, "errorContains": "PSE is a COP payment alias only"}
+  },
+  {
+    "name": "COP rejects decimal amounts",
+    "action": "payment",
+    "body": {"currency": "COP", "paymentType": "NEQUI", "amount": "5000.50"},
+    "expect": {"valid": false, "errorContains": "does not support decimal amounts"}
+  },
+  {
+    "name": "COP out-of-range amount requires contract confirmation",
+    "action": "payment",
+    "body": {"currency": "COP", "paymentType": "NEQUI", "amount": "4999"},
+    "expect": {"valid": true, "productionDecision": "CONTRACT_CONFIRMATION_REQUIRED", "contractConfirmationRequired": true, "warningContains": "DOCUMENT_CONFLICT"}
+  },
+  {
+    "name": "Unmapped currency has no reviewed gateway",
+    "action": "payment",
+    "body": {"currency": "USD", "paymentType": "CARD", "amount": "10"},
+    "expect": {"valid": false, "errorContains": "no reviewed gateway mapping"}
+  },
+  {
+    "name": "MXN SPEI payment requires dynamic four",
+    "action": "payment",
+    "body": {"currency": "MXN", "paymentType": "SPEI", "amount": "40"},
+    "expect": {"valid": false, "errorContains": "dynamic must be 4"}
+  },
+  {
+    "name": "MXN SPEI payment exposes official network context",
+    "action": "payment",
+    "body": {"currency": "MXN", "paymentType": "SPEI", "amount": "40", "dynamic": "4", "mchOrderId": "MXN20260910"},
+    "expect": {"valid": true, "paymentType": "SPEI", "coverage": "detailed", "networkContext": true, "sourceId": "banxico-spei"}
+  },
+  {
+    "name": "MXN collection order ID forbids underscore",
+    "action": "payment",
+    "body": {"currency": "MXN", "paymentType": "SPEI", "amount": "40", "dynamic": "4", "mchOrderId": "MXN_BAD"},
+    "expect": {"valid": false, "errorContains": "must not contain"}
+  },
+  {
+    "name": "MXN SPEI payout validates official CLABE example",
+    "action": "payout",
+    "body": {"currency": "MXN", "paymentType": "SPEI", "amount": "40", "beneficiaryBankCode": "40012", "beneficiaryAccountNumber": "002180032240946700"},
+    "expect": {"valid": true, "sourceId": "banxico-clabe"}
+  },
+  {
+    "name": "MXN SPEI payout rejects invalid CLABE checksum",
+    "action": "payout",
+    "body": {"currency": "MXN", "paymentType": "SPEI", "amount": "40", "beneficiaryBankCode": "40012", "beneficiaryAccountNumber": "002180032240946701"},
+    "expect": {"valid": false, "errorContains": "CLABE check digit is invalid"}
+  },
+  {
+    "name": "MXN DIMO requires ten local digits",
+    "action": "payout",
+    "body": {"currency": "MXN", "paymentType": "DIMO", "amount": "40", "beneficiaryBankCode": "40012", "beneficiaryAccountNumber": "+525512345678"},
+    "expect": {"valid": false, "errorContains": "exactly 10 digits"}
+  },
+  {
+    "name": "MXN payout range conflict is not silently accepted for production",
+    "action": "payout",
+    "body": {"currency": "MXN", "paymentType": "DIMO", "amount": "39", "beneficiaryBankCode": "40012", "beneficiaryAccountNumber": "5512345678"},
+    "expect": {"valid": true, "productionDecision": "CONTRACT_CONFIRMATION_REQUIRED", "contractConfirmationRequired": true}
+  },
+  {
+    "name": "COP NET_BANKING payment requires bankCode",
+    "action": "payment",
+    "body": {"currency": "COP", "paymentType": "NET_BANKING", "amount": "5000"},
+    "expect": {"valid": false, "errorContains": "bankCode is required"}
+  },
+  {
+    "name": "Complete COP NET_BANKING payment accepts omitted paymentMethod and lowercase common names",
+    "action": "payment",
+    "strict": true,
+    "body": {"mchOrderId": "COPPAY2026091001", "amount": "5000", "currency": "COP", "productinfo": "Test purchase", "firstname": "Test", "lastname": "Payer", "email": "payer@example.com", "phone": "3001234567", "paymentType": "NET_BANKING", "beneficiaryType": "CC", "beneficiaryId": "12345678", "ipAddress": "8.8.8.8", "productUrl": "https://merchant.example/product/1", "bankCode": "001"},
+    "expect": {"valid": true, "paymentType": "NET_BANKING", "sourceId": "tdaypay-cop-payment"}
+  },
+  {
+    "name": "COP payment rejects non-API paymentMethod only when supplied",
+    "action": "payment",
+    "strict": true,
+    "body": {"mchOrderId": "COPPAY2026091002", "amount": "5000", "currency": "COP", "productinfo": "Test purchase", "firstname": "Test", "lastname": "Payer", "email": "payer@example.com", "phone": "3001234567", "paymentType": "NET_BANKING", "beneficiaryType": "CC", "beneficiaryId": "12345678", "ipAddress": "8.8.8.8", "productUrl": "https://merchant.example/product/1", "paymentMethod": "CHECKOUT", "bankCode": "001"},
+    "expect": {"valid": false, "errorContains": "when supplied, paymentMethod must be API"}
+  },
+  {
+    "name": "COP NET_BANKING payment rejects a bank outside the documented table",
+    "action": "payment",
+    "strict": true,
+    "body": {"mchOrderId": "COPPAY2026091003", "amount": "5000", "currency": "COP", "productinfo": "Test purchase", "firstname": "Test", "lastname": "Payer", "email": "payer@example.com", "phone": "3001234567", "paymentType": "NET_BANKING", "beneficiaryType": "CC", "beneficiaryId": "12345678", "ipAddress": "8.8.8.8", "productUrl": "https://merchant.example/product/1", "bankCode": "999"},
+    "expect": {"valid": false, "errorContains": "bankCode must be one of"}
+  },
+  {
+    "name": "COP payment validates beneficiaryId according to beneficiaryType",
+    "action": "payment",
+    "strict": true,
+    "body": {"mchOrderId": "COPPAY2026091004", "amount": "5000", "currency": "COP", "productinfo": "Test purchase", "firstname": "Test", "lastname": "Payer", "email": "payer@example.com", "phone": "3001234567", "paymentType": "NEQUI", "beneficiaryType": "NIT", "beneficiaryId": "12345678", "ipAddress": "8.8.8.8", "productUrl": "https://merchant.example/product/1"},
+    "expect": {"valid": false, "errorContains": "beneficiaryId must be exactly 9 digits"}
+  },
+  {
+    "name": "COP payment rejects an invalid device IP",
+    "action": "payment",
+    "strict": true,
+    "body": {"mchOrderId": "COPPAY2026091005", "amount": "5000", "currency": "COP", "productinfo": "Test purchase", "firstname": "Test", "lastname": "Payer", "email": "payer@example.com", "phone": "3001234567", "paymentType": "NEQUI", "beneficiaryType": "CC", "beneficiaryId": "12345678", "ipAddress": "not-an-ip", "productUrl": "https://merchant.example/product/1"},
+    "expect": {"valid": false, "errorContains": "ipAddress must be a valid IPv4 or IPv6 address"}
+  },
+  {
+    "name": "COP payment rejects a non-HTTP product URL",
+    "action": "payment",
+    "strict": true,
+    "body": {"mchOrderId": "COPPAY2026091006", "amount": "5000", "currency": "COP", "productinfo": "Test purchase", "firstname": "Test", "lastname": "Payer", "email": "payer@example.com", "phone": "3001234567", "paymentType": "NEQUI", "beneficiaryType": "CC", "beneficiaryId": "12345678", "ipAddress": "8.8.8.8", "productUrl": "javascript:alert(1)"},
+    "expect": {"valid": false, "errorContains": "productUrl must be an absolute HTTP or HTTPS URL"}
+  },
+  {
+    "name": "COP NEQUI remains distinct from PSE bank code",
+    "action": "payment",
+    "body": {"currency": "COP", "paymentType": "NEQUI", "amount": "5000"},
+    "expect": {"valid": true, "sourceId": "nequi-button"}
+  },
+  {
+    "name": "COP Transfiya requires a local mobile account",
+    "action": "payout",
+    "body": {"currency": "COP", "paymentType": "TRANSFIYA", "amount": "5000", "beneficiaryBankName": "001", "beneficiaryAccountNumber": "test", "beneficiaryAccountType": "SAVINGS", "docType": "CC", "docNumber": "12345678"},
+    "expect": {"valid": false, "errorContains": "10 local digits"}
+  },
+  {
+    "name": "COP Transfiya to Nequi is a stale-channel conflict",
+    "action": "payout",
+    "body": {"currency": "COP", "paymentType": "TRANSFIYA", "amount": "5000", "beneficiaryBankName": "507", "beneficiaryAccountNumber": "3001234567", "beneficiaryAccountType": "SAVINGS", "docType": "CC", "docNumber": "12345678"},
+    "expect": {"valid": true, "productionDecision": "CONTRACT_CONFIRMATION_REQUIRED", "warningContains": "STALE_CHANNEL_CONFLICT", "sourceId": "nequi-transfiya-retirement"}
+  },
+  {
+    "name": "COP Bre-B phone key validates with explicit validator metadata",
+    "action": "payout",
+    "keyType": "PHONE",
+    "body": {"currency": "COP", "paymentType": "BRE_B", "amount": "5000", "beneficiaryAccountNumber": "3001234567", "docType": "CC", "docNumber": "12345678"},
+    "expect": {"valid": true, "networkContext": true, "sourceId": "banrep-bre-b"}
+  },
+  {
+    "name": "COP Bre-B alphanumeric key requires at sign",
+    "action": "payout",
+    "keyType": "ALPHANUMERIC",
+    "body": {"currency": "COP", "paymentType": "BRE_B", "amount": "5000", "beneficiaryAccountNumber": "key123", "docType": "CC", "docNumber": "12345678"},
+    "expect": {"valid": false, "errorContains": "must start with @"}
+  },
+  {
+    "name": "COP NET_BANKING payout rejects an invalid account type",
+    "action": "payout",
+    "body": {"currency": "COP", "paymentType": "NET_BANKING", "amount": "5000", "beneficiaryBankName": "001", "beneficiaryAccountNumber": "123456789", "beneficiaryAccountType": "CARD", "docType": "CC", "docNumber": "12345678"},
+    "expect": {"valid": false, "errorContains": "beneficiaryAccountType must be one of"}
+  },
+  {
+    "name": "Complete COP NET_BANKING payout includes common and channel fields",
+    "action": "payout",
+    "strict": true,
+    "body": {"mchOrderId": "COPPAYOUT20260910", "amount": "5000", "currency": "COP", "purpose": "Vendor settlement", "beneficiaryName": "Test Recipient", "beneficiaryEmail": "payee@example.com", "beneficiaryMobile": "3001234567", "beneficiaryAccountNumber": "123456789", "paymentType": "NET_BANKING", "beneficiaryBankName": "001", "beneficiaryAccountType": "SAVINGS", "docType": "CC", "docNumber": "12345678", "firstName": "Test", "lastName": "Recipient"},
+    "expect": {"valid": true, "paymentType": "NET_BANKING", "sourceId": "tdaypay-cop-net-banking"}
+  },
+  {
+    "name": "Strict payout rejects missing common purpose",
+    "action": "payout",
+    "strict": true,
+    "body": {"mchOrderId": "COPPAYOUT20260911", "amount": "5000", "currency": "COP", "beneficiaryName": "Test Recipient", "beneficiaryEmail": "payee@example.com", "beneficiaryMobile": "3001234567", "beneficiaryAccountNumber": "123456789", "paymentType": "NET_BANKING", "beneficiaryBankName": "001", "beneficiaryAccountType": "SAVINGS", "docType": "CC", "docNumber": "12345678", "firstName": "Test", "lastName": "Recipient"},
+    "expect": {"valid": false, "errorContains": "purpose is required"}
+  },
+  {
+    "name": "Strict payout validates beneficiaryEmail",
+    "action": "payout",
+    "strict": true,
+    "body": {"mchOrderId": "COPPAYOUT20260912", "amount": "5000", "currency": "COP", "purpose": "Vendor settlement", "beneficiaryName": "Test Recipient", "beneficiaryEmail": "invalid-email", "beneficiaryMobile": "3001234567", "beneficiaryAccountNumber": "123456789", "paymentType": "NET_BANKING", "beneficiaryBankName": "001", "beneficiaryAccountType": "SAVINGS", "docType": "CC", "docNumber": "12345678", "firstName": "Test", "lastName": "Recipient"},
+    "expect": {"valid": false, "errorContains": "beneficiaryEmail has an invalid format"}
+  },
+  {
+    "name": "Strict COP payout validates common beneficiaryMobile",
+    "action": "payout",
+    "strict": true,
+    "body": {"mchOrderId": "COPPAYOUT20260913", "amount": "5000", "currency": "COP", "purpose": "Vendor settlement", "beneficiaryName": "Test Recipient", "beneficiaryEmail": "payee@example.com", "beneficiaryMobile": "123", "beneficiaryAccountNumber": "123456789", "paymentType": "NET_BANKING", "beneficiaryBankName": "001", "beneficiaryAccountType": "SAVINGS", "docType": "CC", "docNumber": "12345678", "firstName": "Test", "lastName": "Recipient"},
+    "expect": {"valid": false, "errorContains": "Colombian phone must be 10 local digits"}
+  },
+  {
+    "name": "COP payout rejects docNumber longer than thirteen characters",
+    "action": "payout",
+    "body": {"currency": "COP", "paymentType": "NET_BANKING", "amount": "5000", "beneficiaryBankName": "001", "beneficiaryAccountNumber": "123456789", "beneficiaryAccountType": "SAVINGS", "docType": "CC", "docNumber": "12345678901234"},
+    "expect": {"valid": false, "errorContains": "docNumber must be at most 13 characters"}
+  },
+  {
+    "name": "Complete MXN SPEI payment includes common and channel fields",
+    "action": "payment",
+    "strict": true,
+    "body": {"mchOrderId": "MXNPAY20260910", "amount": "40", "currency": "MXN", "productinfo": "Test purchase", "firstname": "Test", "lastname": "Payer", "email": "payer@example.com", "phone": "5512345678", "paymentType": "SPEI", "dynamic": "4"},
+    "expect": {"valid": true, "paymentType": "SPEI", "sourceId": "tdaypay-mxn-payment"}
+  },
+  {
+    "name": "Strict payment rejects missing common productinfo",
+    "action": "payment",
+    "strict": true,
+    "body": {"mchOrderId": "MXNPAY20260911", "amount": "40", "currency": "MXN", "firstname": "Test", "lastname": "Payer", "email": "payer@example.com", "phone": "5512345678", "paymentType": "SPEI", "dynamic": "4"},
+    "expect": {"valid": false, "errorContains": "productinfo is required"}
+  },
+  {
+    "name": "Strict payment rejects a short merchant order ID",
+    "action": "payment",
+    "strict": true,
+    "body": {"mchOrderId": "A1", "amount": "40", "currency": "MXN", "productinfo": "Test purchase", "firstname": "Test", "lastname": "Payer", "email": "payer@example.com", "phone": "5512345678", "paymentType": "SPEI", "dynamic": "4"},
+    "expect": {"valid": false, "errorContains": "mchOrderId must be at least 5 characters"}
+  },
+  {
+    "name": "Validated payout advisories do not require manual review",
+    "action": "payout",
+    "strict": true,
+    "body": {"mchOrderId": "COPPAYOUT20260914", "amount": "5000", "currency": "COP", "purpose": "Vendor settlement", "beneficiaryName": "Test Recipient", "beneficiaryEmail": "payee@example.com", "beneficiaryMobile": "3001234567", "beneficiaryAccountNumber": "123456789", "paymentType": "NET_BANKING", "beneficiaryBankName": "001", "beneficiaryAccountType": "SAVINGS", "docType": "CC", "docNumber": "12345678", "firstName": "Test", "lastName": "Recipient"},
+    "expect": {"valid": true, "productionDecision": "VALIDATED_WITH_WARNINGS", "manualReviewRequired": false}
+  }
+]
