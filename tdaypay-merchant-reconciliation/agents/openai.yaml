@@ -1,0 +1,11 @@
+interface:
+  display_name: "TDayPay 商户对账"
+  short_description: "按订单文件和日期自动完成 TDayPay 对账与文本 Excel 导出"
+  default_prompt: "使用 $tdaypay-merchant-reconciliation 对我上传的订单文件，按币种、开始日期和结束日期完成 TDayPay 对账。"
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "lamei-tdaypay-merchant"
+      description: "导出当前商户的 TDayPay 订单与记账流水"
+policy:
+  allow_implicit_invocation: true
